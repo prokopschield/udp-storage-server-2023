@@ -54,3 +54,18 @@ pub fn hash(data: &[u8]) -> [u8; 50] {
 
     return encoded[..50].try_into().unwrap();
 }
+
+pub fn verify_hash_integrity(hash: &[u8; 50]) -> bool {
+    let bytes = super::base64::decode(hash);
+    let xored = &bytes[0..32];
+    let length = bytes[36] as u32 + ((bytes[37] as u32) << 8);
+    let checksum = checksum(xored, length);
+
+    for i in 0..4 {
+        if checksum[i] != bytes[i + 32] {
+            return false;
+        }
+    }
+
+    return true;
+}
