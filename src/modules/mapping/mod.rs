@@ -1,9 +1,9 @@
 use super::error::{to_error, UssResult};
 
 pub struct MemoryMapping {
-    owned_ro: Option<std::sync::Arc<std::sync::Mutex<memmap::Mmap>>>,
-    owned_rw: Option<std::sync::Arc<std::sync::Mutex<memmap::MmapMut>>>,
-    roref: &'static [u8],
+    pub owned_ro: Option<std::sync::Arc<std::sync::Mutex<memmap::Mmap>>>,
+    pub owned_rw: Option<std::sync::Arc<std::sync::Mutex<memmap::MmapMut>>>,
+    pub roref: &'static [u8],
 }
 
 pub fn create_ro_mapping(file_path: &str) -> UssResult<MemoryMapping> {
