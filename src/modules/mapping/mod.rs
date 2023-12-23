@@ -16,7 +16,8 @@ pub fn create_ro_mapping(file_path: &str) -> UssResult<MemoryMapping> {
 
     let mmap = unsafe { memmap::MmapOptions::new().map(&file).map_err(to_error)? };
 
-    let slice = &mmap[..];
+    let slice: &[u8] = unsafe { std::slice::from_raw_parts(mmap[..].as_ptr(), mmap.len()) };
+
     let arc = std::sync::Arc::from(std::sync::Mutex::from(mmap));
 
     return Ok(MemoryMapping {
@@ -38,7 +39,8 @@ pub fn create_rw_mapping(file_path: &str) -> UssResult<MemoryMapping> {
 
     let mmut = mmap.make_mut().map_err(to_error)?;
 
-    let slice = &mmap[..];
+    let slice: &[u8] = unsafe { std::slice::from_raw_parts(mmut[..].as_ptr(), mmut.len()) };
+
     let mutex = std::sync::Mutex::from(mmut);
     let arc = std::sync::Arc::from(mutex);
 
