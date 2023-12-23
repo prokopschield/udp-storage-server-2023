@@ -65,4 +65,12 @@ impl DataChunk {
 
         return Ok(slice);
     }
+
+    pub fn read(&self) -> UssResult<Vec<u8>> {
+        let compressed = self.read_compressed()?;
+        let outlen = self.header.uncompressed_length as usize;
+        let data = decompress(compressed, outlen)?;
+
+        return Ok(data);
+    }
 }
