@@ -52,7 +52,9 @@ pub fn hash(data: &[u8]) -> [u8; 50] {
 
     let encoded = super::base64::encode(&vec);
 
-    return encoded[..50].try_into().unwrap();
+    return encoded[..50]
+        .try_into()
+        .expect("hash() result failed into([u8; 50])");
 }
 
 pub fn verify_hash_integrity(hash: &[u8; 50]) -> bool {
