@@ -1,4 +1,7 @@
-use super::error::{UssError, UssResult};
+use super::{
+    compression::decompress,
+    error::{UssError, UssResult},
+};
 
 #[repr(C)]
 pub struct DataChunkHeader {
@@ -46,7 +49,7 @@ impl DataChunk {
         })
     }
 
-    pub fn read_compressed(&mut self) -> UssResult<&[u8]> {
+    pub fn read_compressed(&self) -> UssResult<&[u8]> {
         let mut locked = match self.mapping.lock() {
             Ok(value) => value,
             Err(_) => return Err(UssError::MutexPoison),
