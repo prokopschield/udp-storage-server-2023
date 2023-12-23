@@ -7,6 +7,8 @@ pub struct DataChunkHeader {
     compressed_length: u16,
 }
 
+const HEADER_SIZE: usize = std::mem::size_of::<DataChunkHeader>();
+
 pub struct DataChunk {
     header: DataChunkHeader,
     mapping: std::sync::Arc<std::sync::Mutex<memmap::MmapMut>>,
@@ -42,5 +44,22 @@ impl DataChunk {
             mapping,
             offset,
         })
+    }
+
+    pub fn read_compressed(&mut self) -> UssResult<&[u8]> {
+        let mut locked = match self.mapping.lock() {
+            Ok(value) => value,
+            Err(_) => return Err(UssError::MutexPoison),
+        };
+
+        let offset_real = offset_to_data_offset(self.offset);
+        let locked_location = locked.as_mut_ptr() as usize;
+        let offset_location = offset_real + locked_location + HEADER_SIZE;
+        let pointer = offset_location as *const u8;
+        let length = self.header.compressed_length as usize;
+
+        let slice = unsafe { std::slice::from_raw_parts(pointer, length) };
+
+        return Ok(slice);
     }
 }
