@@ -1,7 +1,4 @@
-use super::{
-    compression::decompress,
-    error::{UssError, UssResult},
-};
+use super::{compression::decompress, error::UssResult, mapping::MemoryMapping};
 
 #[repr(C)]
 pub struct DataChunkHeader {
@@ -14,7 +11,7 @@ const HEADER_SIZE: usize = std::mem::size_of::<DataChunkHeader>();
 
 pub struct DataChunk {
     header: DataChunkHeader,
-    mapping: std::sync::Arc<std::sync::Mutex<memmap::MmapMut>>,
+    mapping: &'static MemoryMapping,
     offset: u32,
 }
 
@@ -23,24 +20,14 @@ pub fn offset_to_data_offset(offset: u32) -> usize {
 }
 
 impl DataChunk {
-    pub fn at(
-        mapping: std::sync::Arc<std::sync::Mutex<memmap::MmapMut>>,
-        offset: u32,
-    ) -> UssResult<Self> {
+    pub fn at(mapping: &'static MemoryMapping, offset: u32) -> UssResult<Self> {
         let offset_real = offset_to_data_offset(offset);
 
-        let mut locked = match mapping.lock() {
-            Ok(value) => value,
-            Err(_) => return Err(UssError::MutexPoison),
-        };
-
-        let locked_location = locked.as_mut_ptr() as usize;
-        let offset_location = offset_real + locked_location;
+        let mapping_location = mapping.roref.as_ptr() as usize;
+        let offset_location = offset_real + mapping_location;
         let pointer = offset_location as *const DataChunkHeader;
 
         let header: DataChunkHeader = unsafe { std::ptr::read(pointer) };
-
-        drop(locked);
 
         Ok(Self {
             header,
@@ -50,14 +37,9 @@ impl DataChunk {
     }
 
     pub fn read_compressed(&self) -> UssResult<&[u8]> {
-        let mut locked = match self.mapping.lock() {
-            Ok(value) => value,
-            Err(_) => return Err(UssError::MutexPoison),
-        };
-
         let offset_real = offset_to_data_offset(self.offset);
-        let locked_location = locked.as_mut_ptr() as usize;
-        let offset_location = offset_real + locked_location + HEADER_SIZE;
+        let mapping_location = self.mapping.roref.as_ptr() as usize;
+        let offset_location = offset_real + mapping_location + HEADER_SIZE;
         let pointer = offset_location as *const u8;
         let length = self.header.compressed_length as usize;
 
