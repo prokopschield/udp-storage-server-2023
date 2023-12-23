@@ -1,4 +1,4 @@
-use super::super::error::{to_error, UssResult};
+use crate::modules::error::{to_error_result, UssResult};
 
 // 4096 (max item size) + 5 bytes (per libdeflater)
 const COMPRESSION_VEC_CAPACITY: usize = 4111;
@@ -81,7 +81,7 @@ impl CompressorCollection {
                 }
                 Ok(out)
             }
-            Err(err) => return to_error(err),
+            Err(err) => return to_error_result(err),
         };
 
         self.push(compressor);

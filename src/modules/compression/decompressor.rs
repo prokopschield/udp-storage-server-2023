@@ -1,4 +1,4 @@
-use super::super::error::{to_error, UssResult};
+use crate::modules::error::{to_error_result, UssResult};
 
 pub fn decompress(data: &[u8], outlen: usize) -> UssResult<Vec<u8>> {
     let mut decompressor = libdeflater::Decompressor::new();
@@ -21,6 +21,6 @@ pub fn decompress(data: &[u8], outlen: usize) -> UssResult<Vec<u8>> {
 
             Ok(out)
         }
-        Err(err) => return to_error(err),
+        Err(err) => return to_error_result(err),
     }
 }
