@@ -10,9 +10,16 @@ pub enum UssError {
 
 pub type UssResult<T> = Result<T, UssError>;
 
-pub fn to_error<T, V>(err: T) -> UssResult<V>
+pub fn to_error<T>(err: T) -> UssError
 where
     T: std::fmt::Debug,
 {
-    Err(UssError::DynamicError(format!("{:?}", err)))
+    UssError::DynamicError(format!("{:?}", err))
+}
+
+pub fn to_error_result<T, V>(err: T) -> UssResult<V>
+where
+    T: std::fmt::Debug,
+{
+    Err(to_error(err))
 }
