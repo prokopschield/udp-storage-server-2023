@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+pub mod sieve;
 
 use super::{compression::decompress, error::*, mapping::*};
+use std::{collections::HashMap, io::Write};
 
 #[repr(C)]
 pub struct DataChunkHeader {
@@ -59,13 +60,24 @@ impl DataChunk {
     }
 }
 
+#[repr(C)]
 struct DataLakeHeader {
+    // b"DataLake"
     magic: [u8; 8],
+    // file size in bytes
+    file_size: u64,
+    // data size in 256-byte chunks
     data_size: u32,
-    index_mod: u32,
-    data_offset: u64,
-    index_offset: u64,
+    // offset where data starts in 256-byte chunks
+    data_offset: u32,
+    // next free 256-byte chunk
     data_next: u32,
+    // index_offset: *mut u32 = (crc32(hash) % index_mod) + (index_offset >> 2)
+    index_mod: u32,
+    // index begins here (in 256-byte chunks)
+    index_offset: u32,
+    // index_offset << 6
+    index_offset_u32: u32,
 }
 
 struct DataLake {
@@ -90,5 +102,51 @@ impl DataLake {
             chunks: HashMap::new(),
             header,
         })
+    }
+
+    pub fn create(file_name: &str, file_size: u64) -> UssResult<DataLake> {
+        if std::fs::metadata(file_name).is_ok() {
+            return Err(UssError::DynamicError(format!(
+                "File {} already exists",
+                file_name
+            )));
+        }
+
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(file_name)
+            .map_err(to_error)?;
+
+        file.set_len(file_size.into()).map_err(to_error)?;
+
+        let index_mod = sieve::get_le_prime((file_size >> 10) as u32);
+
+        // 1 (header size) + ceil(index_mod / (256 / 4))
+        let data_offset = 2 + (index_mod - 1) >> 6;
+
+        // in 256-byte chunks
+        let data_size = (file_size >> 8) as u32 - data_offset;
+
+        let header = DataLakeHeader {
+            magic: b"DataLake".to_owned(),
+            file_size,
+            data_size,
+            data_offset,
+            data_next: data_offset,
+            index_mod,
+            index_offset: 1,
+            index_offset_u32: 1 << 6,
+        };
+
+        let header_ptr = &header as *const DataLakeHeader;
+        let header_u8ptr = header_ptr as *const u8;
+        let header_size = std::mem::size_of::<DataLakeHeader>();
+        let header_slice = unsafe { std::slice::from_raw_parts(header_u8ptr, header_size) };
+
+        file.write_all(header_slice).map_err(to_error)?;
+
+        return DataLake::load(file_name, false);
     }
 }
