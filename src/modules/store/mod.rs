@@ -80,7 +80,7 @@ struct DataLakeHeader {
     index_offset_u32: u32,
 }
 
-struct DataLake {
+pub struct DataLake {
     data: MemoryMapping,
     chunks: HashMap<[u8; 50], DataChunk>,
     header: DataLakeHeader,
