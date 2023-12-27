@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{compression::decompress, error::UssResult, mapping::*};
+use super::{compression::decompress, error::*, mapping::*};
 
 #[repr(C)]
 pub struct DataChunkHeader {
@@ -63,34 +63,29 @@ struct DataLakeHeader {
     magic: [u8; 8],
     data_size: u32,
     index_mod: u32,
+    data_offset: u64,
+    index_offset: u64,
+    data_next: u32,
 }
 
 struct DataLake {
-    index: MemoryMapping,
     data: MemoryMapping,
     chunks: HashMap<[u8; 50], DataChunk>,
     header: DataLakeHeader,
 }
 
 impl DataLake {
-    pub fn load(index_filename: &str, data_filename: &str, readonly: bool) -> UssResult<DataLake> {
-        let index_map = if readonly {
-            create_ro_mapping(index_filename)?
-        } else {
-            create_rw_mapping(index_filename)?
-        };
-
+    pub fn load(filename: &str, readonly: bool) -> UssResult<DataLake> {
         let data_map = if readonly {
-            create_ro_mapping(data_filename)?
+            create_ro_mapping(filename)?
         } else {
-            create_rw_mapping(data_filename)?
+            create_rw_mapping(filename)?
         };
 
         let header_ptr = data_map.roref.as_ptr() as *const DataLakeHeader;
         let header: DataLakeHeader = unsafe { std::ptr::read(header_ptr) };
 
         Ok(DataLake {
-            index: index_map,
             data: data_map,
             chunks: HashMap::new(),
             header,
