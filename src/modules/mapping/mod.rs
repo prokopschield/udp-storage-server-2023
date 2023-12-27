@@ -9,8 +9,6 @@ pub struct MemoryMapping {
 pub fn create_ro_mapping(file_path: &str) -> UssResult<MemoryMapping> {
     let file = std::fs::OpenOptions::new()
         .read(true)
-        .write(false)
-        .create(false)
         .open(file_path)
         .map_err(to_error)?;
 
@@ -31,7 +29,6 @@ pub fn create_rw_mapping(file_path: &str) -> UssResult<MemoryMapping> {
     let file = std::fs::OpenOptions::new()
         .read(true)
         .write(true)
-        .create(true)
         .open(file_path)
         .map_err(to_error)?;
 
