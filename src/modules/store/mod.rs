@@ -3,6 +3,7 @@ pub mod sieve;
 use super::{compression::decompress, error::*, mapping::*};
 use std::{collections::HashMap, io::Write};
 
+#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct DataChunkHeader {
     hash: [u8; 50],
@@ -12,6 +13,7 @@ pub struct DataChunkHeader {
 
 const HEADER_SIZE: usize = std::mem::size_of::<DataChunkHeader>();
 
+#[derive(Copy, Clone)]
 pub struct DataChunk<'dl> {
     header: DataChunkHeader,
     mapping: &'dl MemoryMapping,
@@ -154,5 +156,34 @@ impl<'dl> DataLake<'dl> {
         let checksum = crate::hasher::checksum_u32(hash, 50);
 
         return checksum % self.header.index_mod + self.header.index_offset_u32;
+    }
+
+    pub fn get(&'dl mut self, hash: &[u8; 50]) -> Option<DataChunk> {
+        match self.chunks.get(hash) {
+            Some(val) => return Some(val.clone()),
+            None => {
+                let mut index_offset = self.get_index_offset(hash);
+
+                loop {
+                    let chunk_offset = self.data.read_u32(index_offset);
+
+                    if chunk_offset == 0 {
+                        return None;
+                    }
+
+                    let chunk = DataChunk::at(&self.data, chunk_offset).ok()?;
+
+                    if &chunk.header.hash != hash {
+                        index_offset += 1;
+
+                        continue;
+                    }
+
+                    self.chunks.insert(hash.to_owned(), chunk);
+
+                    return Some(chunk);
+                }
+            }
+        }
     }
 }
