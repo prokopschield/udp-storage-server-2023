@@ -149,4 +149,10 @@ impl DataLake {
 
         return DataLake::load(file_name, false);
     }
+
+    pub fn get_index_offset(&self, hash: &[u8; 50]) -> u32 {
+        let checksum = crate::hasher::checksum_u32(hash, 50);
+
+        return checksum % self.header.index_mod + self.header.index_offset_u32;
+    }
 }
