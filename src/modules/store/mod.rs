@@ -8,16 +8,16 @@ use std::{collections::HashMap, io::Write, rc::Rc};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct DataChunkHeader {
-    hash: [u8; 50],
-    uncompressed_length: u16,
-    compressed_length: u16,
+    pub hash: [u8; 50],
+    pub uncompressed_length: u16,
+    pub compressed_length: u16,
 }
 
 const HEADER_SIZE: usize = std::mem::size_of::<DataChunkHeader>();
 
 #[derive(Clone)]
 pub struct DataChunk {
-    header: DataChunkHeader,
+    pub header: DataChunkHeader,
     mapping: Rc<MemoryMapping>,
     offset: u32,
 }
