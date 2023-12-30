@@ -24,7 +24,7 @@ pub fn xor(a: [u8; 32], b: [u8; 32]) -> [u8; 32] {
     return result;
 }
 
-pub fn checksum(data: &[u8], length: u32) -> [u8; 4] {
+pub fn checksum_u32(data: &[u8], length: u32) -> u32 {
     let mut hash: u32 = length;
 
     for c in data.iter() {
@@ -34,7 +34,11 @@ pub fn checksum(data: &[u8], length: u32) -> [u8; 4] {
             .wrapping_sub(hash);
     }
 
-    return hash.to_le_bytes();
+    return hash;
+}
+
+pub fn checksum(data: &[u8], length: u32) -> [u8; 4] {
+    return checksum_u32(data, length).to_le_bytes();
 }
 
 pub fn hash(data: &[u8]) -> [u8; 50] {
