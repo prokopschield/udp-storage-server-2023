@@ -133,10 +133,10 @@ impl DataLake {
         let index_offset_u32 = 1 << 6;
 
         let index_mod = sieve::get_le_prime((file_size >> 10) as u32);
-        let index_max = (index_offset + 1 + (index_mod - 1) >> 6) << 6;
+        let index_max = (index_offset + 1 + ((index_mod - 1) >> 6)) << 6;
 
         // 1 (header size) + ceil(index_mod / (256 / 4))
-        let data_offset = 2 + (index_mod - 1) >> 6;
+        let data_offset = 2 + ((index_mod - 1) >> 6);
 
         // in 256-byte chunks
         let data_size = (file_size >> 8) as u32 - data_offset;
