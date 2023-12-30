@@ -34,7 +34,7 @@ pub fn checksum(data: &[u8], length: u32) -> [u8; 4] {
             .wrapping_sub(hash);
     }
 
-    return hash.to_ne_bytes();
+    return hash.to_le_bytes();
 }
 
 pub fn hash(data: &[u8]) -> [u8; 50] {
