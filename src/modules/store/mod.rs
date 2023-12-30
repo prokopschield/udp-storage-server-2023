@@ -1,7 +1,7 @@
 pub mod sieve;
 
 use super::{compression::decompress, error::*, mapping::*};
-use std::{collections::HashMap, io::Write};
+use std::{collections::HashMap, io::Write, rc::Rc};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -13,10 +13,10 @@ pub struct DataChunkHeader {
 
 const HEADER_SIZE: usize = std::mem::size_of::<DataChunkHeader>();
 
-#[derive(Copy, Clone)]
-pub struct DataChunk<'dl> {
+#[derive(Clone)]
+pub struct DataChunk {
     header: DataChunkHeader,
-    mapping: &'dl MemoryMapping,
+    mapping: Rc<MemoryMapping>,
     offset: u32,
 }
 
@@ -24,8 +24,8 @@ pub fn offset_to_data_offset(offset: u32) -> usize {
     (offset as usize) << 8
 }
 
-impl<'dl> DataChunk<'dl> {
-    pub fn at(mapping: &'dl MemoryMapping, offset: u32) -> UssResult<Self> {
+impl DataChunk {
+    pub fn at(mapping: Rc<MemoryMapping>, offset: u32) -> UssResult<Self> {
         let offset_real = offset_to_data_offset(offset);
 
         let mapping_location = mapping.roref.as_ptr() as usize;
@@ -82,13 +82,13 @@ struct DataLakeHeader {
     index_offset_u32: u32,
 }
 
-pub struct DataLake<'dl> {
-    data: MemoryMapping,
-    chunks: HashMap<[u8; 50], DataChunk<'dl>>,
+pub struct DataLake {
+    data: Rc<MemoryMapping>,
+    chunks: HashMap<[u8; 50], DataChunk>,
     header: DataLakeHeader,
 }
 
-impl<'dl> DataLake<'dl> {
+impl DataLake {
     pub fn load(filename: &str, readonly: bool) -> UssResult<DataLake> {
         let data_map = if readonly {
             create_ro_mapping(filename)?
@@ -100,7 +100,7 @@ impl<'dl> DataLake<'dl> {
         let header: DataLakeHeader = unsafe { std::ptr::read(header_ptr) };
 
         Ok(DataLake {
-            data: data_map,
+            data: Rc::from(data_map),
             chunks: HashMap::new(),
             header,
         })
@@ -158,7 +158,7 @@ impl<'dl> DataLake<'dl> {
         return checksum % self.header.index_mod + self.header.index_offset_u32;
     }
 
-    pub fn get(&'dl mut self, hash: &[u8; 50]) -> Option<DataChunk> {
+    pub fn get(&mut self, hash: &[u8; 50]) -> Option<DataChunk> {
         match self.chunks.get(hash) {
             Some(val) => return Some(val.clone()),
             None => {
@@ -171,7 +171,7 @@ impl<'dl> DataLake<'dl> {
                         return None;
                     }
 
-                    let chunk = DataChunk::at(&self.data, chunk_offset).ok()?;
+                    let chunk = DataChunk::at(self.data.clone(), chunk_offset).ok()?;
 
                     if &chunk.header.hash != hash {
                         index_offset += 1;
@@ -179,7 +179,7 @@ impl<'dl> DataLake<'dl> {
                         continue;
                     }
 
-                    self.chunks.insert(hash.to_owned(), chunk);
+                    self.chunks.insert(hash.to_owned(), chunk.clone());
 
                     return Some(chunk);
                 }
