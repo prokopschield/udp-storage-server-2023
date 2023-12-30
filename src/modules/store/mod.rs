@@ -78,6 +78,8 @@ struct DataLakeHeader {
     data_next: u32,
     // index_offset: *mut u32 = (hasher::checksum(hash) % index_mod) + index_offset_u32
     index_mod: u32,
+    // max value of index_offset before overflow into data
+    index_max: u32,
     // index begins here (in 256-byte chunks)
     index_offset: u32,
     // index_offset << 6
@@ -127,7 +129,11 @@ impl DataLake {
 
         file.set_len(file_size.into()).map_err(to_error)?;
 
+        let index_offset = 1;
+        let index_offset_u32 = 1 << 6;
+
         let index_mod = sieve::get_le_prime((file_size >> 10) as u32);
+        let index_max = (index_offset + 1 + (index_mod - 1) >> 6) << 6;
 
         // 1 (header size) + ceil(index_mod / (256 / 4))
         let data_offset = 2 + (index_mod - 1) >> 6;
@@ -142,8 +148,9 @@ impl DataLake {
             data_offset,
             data_next: data_offset,
             index_mod,
-            index_offset: 1,
-            index_offset_u32: 1 << 6,
+            index_max,
+            index_offset,
+            index_offset_u32,
         };
 
         let header_ptr = &header as *const DataLakeHeader;
