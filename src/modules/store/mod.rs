@@ -76,7 +76,7 @@ struct DataLakeHeader {
     data_offset: u32,
     // next free 256-byte chunk
     data_next: u32,
-    // index_offset: *mut u32 = (crc32(hash) % index_mod) + (index_offset >> 2)
+    // index_offset: *mut u32 = (hasher::checksum(hash) % index_mod) + index_offset_u32
     index_mod: u32,
     // index begins here (in 256-byte chunks)
     index_offset: u32,
