@@ -12,9 +12,9 @@ pub struct DataChunkHeader {
 
 const HEADER_SIZE: usize = std::mem::size_of::<DataChunkHeader>();
 
-pub struct DataChunk {
+pub struct DataChunk<'dl> {
     header: DataChunkHeader,
-    mapping: &'static MemoryMapping,
+    mapping: &'dl MemoryMapping,
     offset: u32,
 }
 
@@ -22,8 +22,8 @@ pub fn offset_to_data_offset(offset: u32) -> usize {
     (offset as usize) << 8
 }
 
-impl DataChunk {
-    pub fn at(mapping: &'static MemoryMapping, offset: u32) -> UssResult<Self> {
+impl<'dl> DataChunk<'dl> {
+    pub fn at(mapping: &'dl MemoryMapping, offset: u32) -> UssResult<Self> {
         let offset_real = offset_to_data_offset(offset);
 
         let mapping_location = mapping.roref.as_ptr() as usize;
@@ -80,13 +80,13 @@ struct DataLakeHeader {
     index_offset_u32: u32,
 }
 
-pub struct DataLake {
+pub struct DataLake<'dl> {
     data: MemoryMapping,
-    chunks: HashMap<[u8; 50], DataChunk>,
+    chunks: HashMap<[u8; 50], DataChunk<'dl>>,
     header: DataLakeHeader,
 }
 
-impl DataLake {
+impl<'dl> DataLake<'dl> {
     pub fn load(filename: &str, readonly: bool) -> UssResult<DataLake> {
         let data_map = if readonly {
             create_ro_mapping(filename)?
