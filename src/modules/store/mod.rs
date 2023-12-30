@@ -85,7 +85,7 @@ struct DataLakeHeader {
 pub struct DataLake {
     data: Rc<MemoryMapping>,
     chunks: HashMap<[u8; 50], DataChunk>,
-    header: DataLakeHeader,
+    header: Rc<DataLakeHeader>,
 }
 
 impl DataLake {
@@ -96,8 +96,7 @@ impl DataLake {
             create_rw_mapping(filename)?
         };
 
-        let header_ptr = data_map.roref.as_ptr() as *const DataLakeHeader;
-        let header: DataLakeHeader = unsafe { std::ptr::read(header_ptr) };
+        let header = unsafe { Rc::from_raw(data_map.roref.as_ptr() as *mut DataLakeHeader) };
 
         Ok(DataLake {
             data: Rc::from(data_map),
