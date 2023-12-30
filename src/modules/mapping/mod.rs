@@ -6,6 +6,19 @@ pub struct MemoryMapping {
     pub roref: &'static [u8],
 }
 
+impl MemoryMapping {
+    pub fn get_ro_slice(&self, offset: usize, length: usize) -> &[u8] {
+        &self.roref[offset..offset + length]
+    }
+
+    pub fn read_u32(&self, offset_in_u32_chunks: u32) -> u32 {
+        let offset = offset_in_u32_chunks << 2;
+        let bytes = self.get_ro_slice(offset as usize, 4);
+
+        u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
+    }
+}
+
 pub fn create_ro_mapping(file_path: &str) -> UssResult<MemoryMapping> {
     let file = std::fs::OpenOptions::new()
         .read(true)
