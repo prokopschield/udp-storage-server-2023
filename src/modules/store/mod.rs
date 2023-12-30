@@ -1,5 +1,7 @@
 pub mod sieve;
 
+use crate::compression::compressor::CompressorCollection;
+
 use super::{compression::decompress, error::*, mapping::*};
 use std::{collections::HashMap, io::Write, rc::Rc};
 
@@ -184,5 +186,63 @@ impl DataLake {
                 }
             }
         }
+    }
+
+    pub fn put(
+        &mut self,
+        data: &[u8],
+        compressors: &mut CompressorCollection,
+    ) -> UssResult<DataChunk> {
+        let hash = super::hasher::hash(data);
+        let existing = self.get(&hash);
+
+        match existing {
+            Some(chunk) => return Ok(chunk),
+            None => (),
+        };
+
+        let mut map = match &self.data.owned_rw {
+            Some(arc) => arc.lock().map_err(to_error)?,
+            None => return Err(UssError::StaticError("put() called on read-only map")),
+        };
+
+        let compressed = compressors.compress(data)?;
+
+        let uncompressed_length = data.len() as u16;
+        let compressed_length = compressed.len() as u16;
+
+        let header = DataChunkHeader {
+            hash,
+            uncompressed_length,
+            compressed_length,
+        };
+
+        let offset = self.header.data_next;
+        let offset_bytes = offset_to_data_offset(offset);
+        let alloc_size: usize = HEADER_SIZE + compressed_length as usize;
+
+        unsafe {
+            // write header
+            let write_location = &mut map[offset_bytes..offset_bytes + alloc_size];
+            let header_ptr = write_location.as_mut_ptr() as *mut DataChunkHeader;
+
+            header_ptr.copy_from(&header, 1);
+        }
+
+        let write_location = &mut map[offset_bytes + HEADER_SIZE..offset_bytes + alloc_size];
+
+        write_location.copy_from_slice(&compressed);
+
+        let lake_header = Rc::get_mut(&mut self.header).ok_or(UssError::StaticError(
+            "Could not get lake_header in lake.put()",
+        ))?;
+
+        lake_header.data_next += ((alloc_size - 1) >> 8) as u32 + 1;
+
+        Ok(DataChunk {
+            header,
+            mapping: self.data.clone(),
+            offset,
+        })
     }
 }
