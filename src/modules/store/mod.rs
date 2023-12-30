@@ -87,7 +87,8 @@ struct DataLakeHeader {
 pub struct DataLake {
     data: Rc<MemoryMapping>,
     chunks: HashMap<[u8; 50], DataChunk>,
-    header: Rc<DataLakeHeader>,
+    header: *mut DataLakeHeader,
+    header_rc: Rc<DataLakeHeader>,
 }
 
 impl DataLake {
@@ -98,12 +99,14 @@ impl DataLake {
             create_rw_mapping(filename)?
         };
 
-        let header = unsafe { Rc::from_raw(data_map.roref.as_ptr() as *mut DataLakeHeader) };
+        let header = data_map.roref.as_ptr() as *mut DataLakeHeader;
+        let header_rc = unsafe { Rc::from_raw(header) };
 
         Ok(DataLake {
             data: Rc::from(data_map),
             chunks: HashMap::new(),
             header,
+            header_rc,
         })
     }
 
@@ -156,7 +159,7 @@ impl DataLake {
     pub fn get_index_offset(&self, hash: &[u8; 50]) -> u32 {
         let checksum = crate::hasher::checksum_u32(hash, 50);
 
-        return checksum % self.header.index_mod + self.header.index_offset_u32;
+        return checksum % self.header_rc.index_mod + self.header_rc.index_offset_u32;
     }
 
     pub fn get(&mut self, hash: &[u8; 50]) -> Option<DataChunk> {
@@ -217,7 +220,7 @@ impl DataLake {
             compressed_length,
         };
 
-        let offset = self.header.data_next;
+        let offset = self.header_rc.data_next;
         let offset_bytes = offset_to_data_offset(offset);
         let alloc_size: usize = HEADER_SIZE + compressed_length as usize;
 
@@ -233,11 +236,9 @@ impl DataLake {
 
         write_location.copy_from_slice(&compressed);
 
-        let lake_header = Rc::get_mut(&mut self.header).ok_or(UssError::StaticError(
-            "Could not get lake_header in lake.put()",
-        ))?;
-
-        lake_header.data_next += ((alloc_size - 1) >> 8) as u32 + 1;
+        unsafe {
+            (*self.header).data_next += ((alloc_size - 1) >> 8) as u32 + 1;
+        }
 
         Ok(DataChunk {
             header,
