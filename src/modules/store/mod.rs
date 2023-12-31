@@ -260,6 +260,28 @@ impl DataLake {
 
         (*self.header).data_next += ((alloc_size - 1) >> 8) as u32 + 1;
 
+        {
+            // add to index
+            let mut index_offset = self.get_index_offset(&hash);
+
+            loop {
+                if index_offset > self.header.index_max {
+                    return Err(UssError::StaticError("DataLake index ran out of space."));
+                }
+
+                if self.data.read_u32(index_offset) != 0 {
+                    index_offset += 1;
+                    continue;
+                }
+
+                let map_offset = (index_offset as usize) << 2;
+
+                map[map_offset..map_offset + 4].copy_from_slice(&offset.to_le_bytes());
+
+                break;
+            }
+        }
+
         Ok(DataChunk {
             header,
             mapping: self.data.clone(),
