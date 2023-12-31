@@ -112,4 +112,23 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Leaf<K, V
 
         return Ok(rc);
     }
+
+    pub fn set_rc(&mut self, value: Rc<V>) -> UssResult<&mut Self> {
+        let mut lock = self.lake.lock().map_err(to_error)?;
+
+        let val_ref = serialize(value.as_ref(), &mut lock)?;
+        let val_u32 = checksum_u32(val_ref.as_bytes(), val_ref.len() as u32);
+
+        drop(lock);
+
+        self.val_ref = val_ref;
+        self.val_u32 = val_u32;
+        self.val_val = Some(value);
+
+        Ok(self)
+    }
+
+    pub fn set(&mut self, value: V) -> UssResult<&mut Self> {
+        self.set_rc(Rc::from(value))
+    }
 }
