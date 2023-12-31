@@ -92,6 +92,7 @@ pub struct DataLake {
     // if MemoryMapping is readonly, modifying header will lead to SIGSEGV
     header: &'static mut DataLakeHeader,
     readonly: bool,
+    compressors: CompressorCollection,
 }
 
 impl DataLake {
@@ -118,6 +119,7 @@ impl DataLake {
             chunks: HashMap::new(),
             header,
             readonly,
+            compressors: CompressorCollection::new(),
         })
     }
 
@@ -207,11 +209,7 @@ impl DataLake {
         }
     }
 
-    pub fn put(
-        &mut self,
-        data: &[u8],
-        compressors: &mut CompressorCollection,
-    ) -> UssResult<DataChunk> {
+    pub fn put(&mut self, data: &[u8]) -> UssResult<DataChunk> {
         let hash = super::hasher::hash(data);
         let existing = self.get(&hash);
 
@@ -231,7 +229,7 @@ impl DataLake {
             None => return Err(UssError::StaticError("put() called on read-only map")),
         };
 
-        let compressed = compressors.compress(data)?;
+        let compressed = self.compressors.compress(data)?;
 
         let uncompressed_length = data.len() as u16;
         let compressed_length = compressed.len() as u16;
