@@ -73,7 +73,7 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Leaf<K, V
         serialize(&(self.key_ref.as_str(), self.val_ref.as_str()), &mut lock)
     }
 
-    pub fn key(&mut self) -> UssResult<Rc<K>> {
+    pub fn key(&self) -> UssResult<Rc<K>> {
         if let Some(key) = self.key_val.clone() {
             return Ok(key);
         }
@@ -82,12 +82,18 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Leaf<K, V
         let key: K = deserialize(self.key_ref.as_bytes(), &mut lock)?;
         let rc = Rc::new(key);
 
+        return Ok(rc);
+    }
+
+    pub fn key_cache(&mut self) -> UssResult<Rc<K>> {
+        let rc = self.key()?;
+
         self.key_val = Some(rc.clone());
 
         return Ok(rc);
     }
 
-    pub fn value(&mut self) -> UssResult<Rc<V>> {
+    pub fn value(&self) -> UssResult<Rc<V>> {
         if let Some(value) = self.val_val.clone() {
             return Ok(value);
         }
@@ -95,6 +101,12 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Leaf<K, V
         let mut lock = self.lake.lock().map_err(to_error)?;
         let value: V = deserialize(self.val_ref.as_bytes(), &mut lock)?;
         let rc = Rc::new(value);
+
+        return Ok(rc);
+    }
+
+    pub fn value_cache(&mut self) -> UssResult<Rc<V>> {
+        let rc = self.value()?;
 
         self.val_val = Some(rc.clone());
 
