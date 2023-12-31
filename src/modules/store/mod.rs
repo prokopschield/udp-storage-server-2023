@@ -220,6 +220,12 @@ impl DataLake {
             None => (),
         };
 
+        if self.readonly {
+            return Err(UssError::StaticError(
+                "Must not call put() on readonly lake.",
+            ));
+        }
+
         let mut map = match &self.data.owned_rw {
             Some(arc) => arc.lock().map_err(to_error)?,
             None => return Err(UssError::StaticError("put() called on read-only map")),
