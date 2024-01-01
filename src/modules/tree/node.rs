@@ -1,7 +1,8 @@
 use super::*;
-use crate::{hasher::checksum_u32, store::DataLake, *};
+use crate::{hasher::checksum_u32, serializer::*, store::DataLake, *};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
+    cell::Cell,
     rc::Rc,
     sync::{Arc, Mutex},
 };
@@ -9,6 +10,7 @@ use std::{
 pub enum NodeChild<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
     Node(Rc<Node<K, V>>),
     Leaf(Rc<Leaf<K, V>>),
+    Lazy(Rc<Lazy<K, V>>),
 }
 
 impl<K, V> Clone for NodeChild<K, V>
@@ -20,6 +22,7 @@ where
         match self {
             NodeChild::Node(rc) => NodeChild::Node(rc.clone()),
             NodeChild::Leaf(rc) => NodeChild::Leaf(rc.clone()),
+            NodeChild::Lazy(rc) => NodeChild::Lazy(rc.clone()),
         }
     }
 }
@@ -81,6 +84,44 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Node<K, V
 
     pub fn new(lake: Arc<Mutex<DataLake>>) -> Self {
         Self::new_with_depth(lake, 0)
+    }
+
+    pub fn from_hash(hash: &[u8], lake: Arc<Mutex<DataLake>>) -> UssResult<Self> {
+        let mut lock = lake.lock().map_err(to_error)?;
+        let (depth, children) = deserialize::<(usize, Vec<(u32, String)>)>(hash, &mut lock)?;
+
+        let mut entries: Vec<NodeEntry<K, V>> = Vec::with_capacity(children.len());
+
+        if depth == 0 {
+            for (check_key, child) in children.into_iter() {
+                let leaf = Leaf::<K, V>::from_hash(child.as_bytes(), lake.clone())?;
+                let key = leaf.key_u32();
+                let child = NodeChild::Leaf::<K, V>(Rc::from(leaf));
+                let entry = NodeEntry { child, key };
+
+                if check_key != key {
+                    return Err(UssError::DynamicError(format!("Error while deserializing node: Invalid Node::from_hash({}): leaf key {} does not match entry key {}", String::from_utf8_lossy(hash), key, check_key)));
+                }
+
+                entries.push(entry);
+            }
+        } else {
+            for (key, child) in children.into_iter() {
+                let lazy = Lazy::<K, V>::from_hash(child, lake.clone());
+                let child = NodeChild::Lazy::<K, V>(Rc::from(lazy));
+                let entry = NodeEntry { child, key };
+
+                entries.push(entry);
+            }
+        }
+
+        drop(lock);
+
+        Ok(Node {
+            depth,
+            entries,
+            lake,
+        })
     }
 
     pub fn get_internal_offset(&self, key: u32) -> usize {
@@ -215,6 +256,7 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Node<K, V
         match child {
             NodeChild::Node(node) => node.get_ge_by_u32(key),
             NodeChild::Leaf(leaf) => Ok(Some(leaf.clone())),
+            NodeChild::Lazy(lazy) => lazy.load()?.get_ge_by_u32(key),
         }
     }
 
@@ -244,5 +286,46 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Node<K, V
 
     pub fn get(&self, key: &K) -> UssResult<Option<Rc<Leaf<K, V>>>> {
         self.get_by_u32(self.key_to_u32(key)?)
+    }
+}
+
+pub enum LazyContent<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
+    None,
+    Node(Rc<Node<K, V>>),
+    Hash(Rc<String>, Arc<Mutex<DataLake>>),
+}
+
+pub struct Lazy<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
+    content: Cell<LazyContent<K, V>>,
+}
+
+impl<K, V> Lazy<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+    pub fn load(&self) -> UssResult<Rc<Node<K, V>>> {
+        match self.content.replace(LazyContent::None) {
+            LazyContent::None => Err(UssError::StaticError("tree: empty Lazy node")),
+            LazyContent::Node(node) => {
+                self.content.replace(LazyContent::Node(node.clone()));
+                Ok(node)
+            }
+            LazyContent::Hash(hash, lake) => {
+                let node = Rc::from(Node::from_hash(hash.as_bytes(), lake)?);
+                self.content.replace(LazyContent::Node(node.clone()));
+                Ok(node)
+            }
+        }
+    }
+
+    pub fn from_rc_hash(hash: Rc<String>, lake: Arc<Mutex<DataLake>>) -> Self {
+        Self {
+            content: Cell::from(LazyContent::Hash(hash, lake)),
+        }
+    }
+
+    pub fn from_hash(hash: String, lake: Arc<Mutex<DataLake>>) -> Self {
+        Self::from_rc_hash(Rc::from(hash), lake)
     }
 }
