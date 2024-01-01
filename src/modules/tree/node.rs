@@ -1,6 +1,5 @@
 use super::*;
-use crate::store::DataLake;
-use crate::*;
+use crate::{hasher::checksum_u32, store::DataLake, *};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
     rc::Rc,
@@ -203,5 +202,47 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Node<K, V
 
     pub fn set(&self, key: K, val: V) -> UssResult<Self> {
         self.set_leaf(Leaf::from_kv(key, val, self.lake.clone())?)
+    }
+
+    pub fn get_ge_by_u32(&self, key: u32) -> UssResult<Option<Rc<Leaf<K, V>>>> {
+        if self.entries.len() == 0 {
+            return Ok(None);
+        }
+
+        let offset = self.get_internal_offset(key);
+        let child = &self.entries[offset].child;
+
+        match child {
+            NodeChild::Node(node) => node.get_ge_by_u32(key),
+            NodeChild::Leaf(leaf) => Ok(Some(leaf.clone())),
+        }
+    }
+
+    pub fn get_by_u32(&self, key: u32) -> UssResult<Option<Rc<Leaf<K, V>>>> {
+        let leaf = self.get_ge_by_u32(key)?;
+
+        if let Some(leaf) = leaf {
+            if leaf.key_u32() == key {
+                return Ok(Some(leaf));
+            }
+        }
+
+        Ok(None)
+    }
+
+    pub fn key_to_u32(&self, key: &K) -> UssResult<u32> {
+        let mut lock = self.lake.lock().map_err(to_error)?;
+        let hash = serializer::serialize(key, &mut lock)?;
+        let key = checksum_u32(hash.as_bytes(), hash.len() as u32);
+
+        Ok(key)
+    }
+
+    pub fn get_ge(&self, key: &K) -> UssResult<Option<Rc<Leaf<K, V>>>> {
+        self.get_ge_by_u32(self.key_to_u32(key)?)
+    }
+
+    pub fn get(&self, key: &K) -> UssResult<Option<Rc<Leaf<K, V>>>> {
+        self.get_by_u32(self.key_to_u32(key)?)
     }
 }
