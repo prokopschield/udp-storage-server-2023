@@ -331,3 +331,74 @@ where
         Self::from_rc_hash(Rc::from(hash), lake)
     }
 }
+
+pub struct NodeIterator<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
+    node: Rc<Node<K, V>>,
+    iter: Option<Rc<NodeIterator<K, V>>>,
+    index: usize,
+}
+
+impl<K, V> Iterator for NodeIterator<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+    type Item = UssResult<Rc<Leaf<K, V>>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(mut iter) = self.iter.take() {
+            let iter_mut = match Rc::get_mut(&mut iter) {
+                Some(iter) => iter,
+                None => {
+                    return Some(Err(UssError::StaticError(
+                        "Fault in NodeIterator: cannot get child &mut NodeIterator",
+                    )))
+                }
+            };
+
+            if let Some(next) = iter_mut.next() {
+                self.iter.replace(iter);
+                return Some(next);
+            }
+        }
+
+        if self.index > self.node.entries.len() {
+            return None;
+        }
+
+        let child = &self.node.entries[self.index].child;
+
+        self.index += 1;
+
+        match child {
+            NodeChild::Lazy(lazy) => {
+                let node = match lazy.load() {
+                    Ok(node) => node,
+                    Err(err) => return Some(Err(err)),
+                };
+
+                self.iter = Some(Rc::from(NodeIterator::from(node)));
+                self.next()
+            }
+            NodeChild::Node(node) => {
+                self.iter = Some(Rc::from(NodeIterator::from(node.clone())));
+                self.next()
+            }
+            NodeChild::Leaf(leaf) => Some(Ok(leaf.clone())),
+        }
+    }
+}
+
+impl<K, V> NodeIterator<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+    pub fn from(node: Rc<Node<K, V>>) -> Self {
+        Self {
+            node,
+            iter: None,
+            index: 0,
+        }
+    }
+}
