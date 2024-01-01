@@ -131,4 +131,28 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Leaf<K, V
     pub fn set(&mut self, value: V) -> UssResult<&mut Self> {
         self.set_rc(Rc::from(value))
     }
+
+    pub fn key_u32(&self) -> u32 {
+        self.key_u32
+    }
+
+    pub fn key_ref(&self) -> &str {
+        self.key_ref.as_ref()
+    }
+
+    pub fn key_val(&self) -> Option<Rc<K>> {
+        self.key_val.clone()
+    }
+
+    pub fn val_u32(&self) -> u32 {
+        self.val_u32
+    }
+
+    pub fn val_ref(&self) -> &str {
+        self.val_ref.as_ref()
+    }
+
+    pub fn val_val(&self) -> Option<Rc<V>> {
+        self.val_val.clone()
+    }
 }
