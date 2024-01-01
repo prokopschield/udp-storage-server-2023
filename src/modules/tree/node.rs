@@ -292,11 +292,12 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Node<K, V
 pub enum LazyContent<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
     None,
     Node(Rc<Node<K, V>>),
-    Hash(Rc<String>, Arc<Mutex<DataLake>>),
+    Lake(Arc<Mutex<DataLake>>),
 }
 
 pub struct Lazy<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
     content: Cell<LazyContent<K, V>>,
+    hash: Rc<String>,
 }
 
 impl<K, V> Lazy<K, V>
@@ -311,8 +312,8 @@ where
                 self.content.replace(LazyContent::Node(node.clone()));
                 Ok(node)
             }
-            LazyContent::Hash(hash, lake) => {
-                let node = Rc::from(Node::from_hash(hash.as_bytes(), lake)?);
+            LazyContent::Lake(lake) => {
+                let node = Rc::from(Node::from_hash(self.hash.as_bytes(), lake)?);
                 self.content.replace(LazyContent::Node(node.clone()));
                 Ok(node)
             }
@@ -321,7 +322,8 @@ where
 
     pub fn from_rc_hash(hash: Rc<String>, lake: Arc<Mutex<DataLake>>) -> Self {
         Self {
-            content: Cell::from(LazyContent::Hash(hash, lake)),
+            content: Cell::from(LazyContent::Lake(lake)),
+            hash,
         }
     }
 
