@@ -236,6 +236,21 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Node<K, V
                     entries,
                     lake: self.lake.clone(),
                 });
+            } else if key < entry.key {
+                let mut entries = Vec::with_capacity(self.entries.len() + 1);
+
+                entries.push(NodeEntry {
+                    child: NodeChild::Leaf(leaf),
+                    key,
+                });
+
+                entries.extend_from_slice(&self.entries[0..self.entries.len()]);
+
+                return Ok(Self {
+                    depth: self.depth,
+                    entries,
+                    lake: self.lake.clone(),
+                });
             } else {
                 let mut entries = Vec::with_capacity(self.entries.len() + 1);
 
