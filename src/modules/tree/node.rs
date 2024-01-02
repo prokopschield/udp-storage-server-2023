@@ -187,9 +187,9 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Node<K, V
     pub fn get_internal_offset(&self, key: u32) -> usize {
         let mut index = 0;
 
-        for item in self.entries.iter() {
-            if key >= item.key {
-                index = item.key
+        for i in 0..self.entries.len() {
+            if key >= self.entries[i].key {
+                index = i
             } else {
                 break;
             }
