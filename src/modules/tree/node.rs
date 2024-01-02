@@ -86,6 +86,66 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Node<K, V
         Self::new_with_depth(lake, 0)
     }
 
+    pub fn hash(&self) -> UssResult<String> {
+        if self.depth == 0 {
+            let mut children: Vec<(u32, String)> = Vec::new();
+
+            for entry in self.entries.iter() {
+                match &entry.child {
+                    NodeChild::Lazy(lazy) => {
+                        let node = lazy.load()?;
+
+                        for item in NodeIterator::from(node) {
+                            match item {
+                                Ok(leaf) => children.push((leaf.key_u32(), leaf.hash()?)),
+                                Err(err) => return Err(err),
+                            }
+                        }
+                    }
+
+                    NodeChild::Node(node) => {
+                        for item in NodeIterator::from(node.clone()) {
+                            match item {
+                                Ok(leaf) => children.push((leaf.key_u32(), leaf.hash()?)),
+                                Err(err) => return Err(err),
+                            }
+                        }
+                    }
+
+                    NodeChild::Leaf(leaf) => children.push((leaf.key_u32(), leaf.hash()?)),
+                }
+            }
+
+            let mut lock = self.lake.lock().map_err(to_error)?;
+
+            serialize(&(self.depth, children), &mut lock)
+        } else {
+            let mut children: Vec<(u32, Rc<String>)> = Vec::new();
+
+            for entry in self.entries.iter() {
+                let str = match &entry.child {
+                    NodeChild::Lazy(lazy) => lazy.hash(),
+                    NodeChild::Node(node) => Rc::from(node.hash()?),
+                    NodeChild::Leaf(_) => return Err(to_error("Node::hash(): unexpected leaf")),
+                };
+
+                children.push((entry.key, str))
+            }
+
+            let arg = (
+                self.depth,
+                children
+                    .iter()
+                    .map(|(key, child)| (*key, child.as_str()))
+                    .collect::<Vec<(u32, &str)>>(),
+            );
+
+            let mut lock = self.lake.lock().map_err(to_error)?;
+
+            serialize(&arg, &mut lock)
+        }
+    }
+
     pub fn from_hash(hash: &[u8], lake: Arc<Mutex<DataLake>>) -> UssResult<Self> {
         let mut lock = lake.lock().map_err(to_error)?;
         let (depth, children) = deserialize::<(usize, Vec<(u32, String)>)>(hash, &mut lock)?;
@@ -318,6 +378,10 @@ where
                 Ok(node)
             }
         }
+    }
+
+    pub fn hash(&self) -> Rc<String> {
+        self.hash.clone()
     }
 
     pub fn from_rc_hash(hash: Rc<String>, lake: Arc<Mutex<DataLake>>) -> Self {
