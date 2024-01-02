@@ -200,6 +200,18 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Node<K, V
 
     pub fn set_rc_leaf(&self, leaf: Rc<Leaf<K, V>>) -> UssResult<Self> {
         let key = leaf.key_u32();
+
+        if self.entries.len() == 0 {
+            return Ok(Self {
+                depth: 0,
+                entries: vec![NodeEntry {
+                    child: NodeChild::Leaf(leaf),
+                    key,
+                }],
+                lake: self.lake.clone(),
+            });
+        }
+
         let offset = self.get_internal_offset(key);
 
         if self.depth == 0 {
