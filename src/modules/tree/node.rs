@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-pub enum NodeChild<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
+pub enum NodeChild<K, V> {
     Node(Rc<Node<K, V>>),
     Leaf(Rc<Leaf<K, V>>),
     Lazy(Rc<Lazy<K, V>>),
@@ -27,7 +27,7 @@ where
     }
 }
 
-pub struct NodeEntry<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
+pub struct NodeEntry<K, V> {
     key: u32,
     child: NodeChild<K, V>,
 }
@@ -45,7 +45,7 @@ where
     }
 }
 
-pub struct Node<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
+pub struct Node<K, V> {
     depth: usize,
     entries: Vec<NodeEntry<K, V>>,
     lake: Arc<Mutex<DataLake>>,
@@ -65,7 +65,11 @@ where
     }
 }
 
-impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Node<K, V> {
+impl<K, V> Node<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
     pub fn new_from_props(
         lake: Arc<Mutex<DataLake>>,
         depth: usize,
@@ -376,13 +380,13 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Node<K, V
     }
 }
 
-pub enum LazyContent<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
+pub enum LazyContent<K, V> {
     None,
     Node(Rc<Node<K, V>>),
     Lake(Arc<Mutex<DataLake>>),
 }
 
-pub struct Lazy<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
+pub struct Lazy<K, V> {
     content: Cell<LazyContent<K, V>>,
     hash: Rc<String>,
 }
@@ -423,7 +427,7 @@ where
     }
 }
 
-pub struct NodeIterator<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
+pub struct NodeIterator<K, V> {
     node: Rc<Node<K, V>>,
     iter: Option<Box<NodeIterator<K, V>>>,
     index: usize,
