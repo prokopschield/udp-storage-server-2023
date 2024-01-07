@@ -11,7 +11,7 @@ use std::{
 };
 
 #[derive(Clone)]
-pub struct Leaf<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> {
+pub struct Leaf<K, V> {
     key_u32: u32,
     key_ref: String,
     key_val: Option<Rc<K>>,
@@ -21,7 +21,11 @@ pub struct Leaf<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned
     lake: Arc<Mutex<DataLake>>,
 }
 
-impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> Leaf<K, V> {
+impl<K, V> Leaf<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
     pub fn from_hash(hash: &[u8], lake: Arc<Mutex<DataLake>>) -> UssResult<Self> {
         let mut lock = lake.lock().map_err(to_error)?;
         let (key_ref, val_ref) = deserialize::<(String, String)>(hash, &mut lock)?;
