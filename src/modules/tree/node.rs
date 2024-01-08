@@ -45,6 +45,99 @@ where
     }
 }
 
+impl<K, V> PartialEq for NodeEntry<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+    fn eq(&self, other: &Self) -> bool {
+        let hash = if let NodeChild::Leaf(self_child) = &self.child {
+            let self_hash = if let Ok(hash) = self_child.hash() {
+                hash
+            } else {
+                return false;
+            };
+
+            let other_hash_result = if let NodeChild::Leaf(other_child) = &other.child {
+                other_child.hash()
+            } else {
+                return false;
+            };
+
+            let other_hash: Rc<String> = if let Ok(hash) = other_hash_result {
+                Rc::from(hash)
+            } else {
+                return false;
+            };
+
+            return self_hash.as_bytes() == other_hash.as_bytes();
+        } else if let NodeChild::Lazy(lazy) = &self.child {
+            lazy.hash.clone()
+        } else if let NodeChild::Node(node) = &self.child {
+            if let Ok(hash) = node.hash() {
+                Rc::from(hash)
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        };
+
+        let other_hash = if let NodeChild::Lazy(lazy) = other.child.clone() {
+            lazy.hash.clone()
+        } else if let NodeChild::Node(node) = other.child.clone() {
+            if let Ok(hash) = node.hash() {
+                Rc::from(hash)
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        };
+
+        return hash.as_bytes() == other_hash.as_bytes();
+    }
+}
+
+impl<K, V> PartialOrd for NodeEntry<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        if self.key < other.key {
+            Some(std::cmp::Ordering::Less)
+        } else if self.key > other.key {
+            Some(std::cmp::Ordering::Greater)
+        } else {
+            Some(std::cmp::Ordering::Equal)
+        }
+    }
+}
+
+impl<K, V> Eq for NodeEntry<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+}
+
+impl<K, V> Ord for NodeEntry<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        if self.key < other.key {
+            std::cmp::Ordering::Less
+        } else if self.key > other.key {
+            std::cmp::Ordering::Greater
+        } else {
+            std::cmp::Ordering::Equal
+        }
+    }
+}
+
 pub struct Node<K, V> {
     depth: usize,
     entries: Vec<NodeEntry<K, V>>,
