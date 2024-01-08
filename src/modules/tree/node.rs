@@ -295,6 +295,40 @@ where
         index as usize
     }
 
+    fn set_rc_leaf_depth_zero(&self, leaf: Rc<Leaf<K, V>>) -> UssResult<Self> {
+        let key = leaf.key_u32();
+        let key_ref = leaf.key_ref();
+
+        let mut entries: Vec<NodeEntry<K, V>> = self
+            .entries
+            .iter()
+            .filter_map(|entry| {
+                if let NodeChild::Leaf(loop_leaf) = &entry.child {
+                    if key_ref == loop_leaf.key_ref() {
+                        None
+                    } else {
+                        return Some(entry.clone());
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        entries.push(NodeEntry {
+            key,
+            child: NodeChild::Leaf(leaf.clone()),
+        });
+
+        entries.sort();
+
+        Ok(Self {
+            depth: 0,
+            entries,
+            lake: self.lake.clone(),
+        })
+    }
+
     pub fn set_rc_leaf(&self, leaf: Rc<Leaf<K, V>>) -> UssResult<Self> {
         let key = leaf.key_u32();
 
@@ -312,60 +346,7 @@ where
         let offset = self.get_internal_offset(key);
 
         if self.depth == 0 {
-            let entry = &self.entries[offset];
-
-            if entry.key == key {
-                let mut entries = Vec::with_capacity(self.entries.len());
-
-                entries.extend_from_slice(&self.entries[0..offset]);
-
-                entries.push(NodeEntry {
-                    child: NodeChild::Leaf(leaf),
-                    key,
-                });
-
-                if self.entries.len() > offset + 1 {
-                    entries.extend_from_slice(&self.entries[offset + 1..self.entries.len()]);
-                }
-
-                return Ok(Self {
-                    depth: self.depth,
-                    entries,
-                    lake: self.lake.clone(),
-                });
-            } else if key < entry.key {
-                let mut entries = Vec::with_capacity(self.entries.len() + 1);
-
-                entries.push(NodeEntry {
-                    child: NodeChild::Leaf(leaf),
-                    key,
-                });
-
-                entries.extend_from_slice(&self.entries[0..self.entries.len()]);
-
-                return Ok(Self {
-                    depth: self.depth,
-                    entries,
-                    lake: self.lake.clone(),
-                });
-            } else {
-                let mut entries = Vec::with_capacity(self.entries.len() + 1);
-
-                entries.extend_from_slice(&self.entries[0..offset]);
-
-                entries.push(NodeEntry {
-                    child: NodeChild::Leaf(leaf),
-                    key,
-                });
-
-                entries.extend_from_slice(&self.entries[offset..self.entries.len()]);
-
-                return Ok(Self {
-                    depth: self.depth,
-                    entries,
-                    lake: self.lake.clone(),
-                });
-            }
+            return self.set_rc_leaf_depth_zero(leaf);
         }
 
         if let NodeChild::Node(node) = &self.entries[offset].child {
