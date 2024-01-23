@@ -1,5 +1,4 @@
 use crate::{
-    hasher::checksum_u32,
     serializer::{deserialize, serialize},
     store::DataLake,
     *,
@@ -29,8 +28,8 @@ where
     pub fn from_hash(hash: &[u8], lake: Arc<Mutex<DataLake>>) -> UssResult<Self> {
         let mut lock = lake.lock().map_err(to_error)?;
         let (key_ref, val_ref) = deserialize::<(String, String)>(hash, &mut lock)?;
-        let key_u32 = checksum_u32(key_ref.as_bytes(), key_ref.len() as u32);
-        let val_u32 = checksum_u32(val_ref.as_bytes(), val_ref.len() as u32);
+        let key_u32 = Self::hash_to_u32(key_ref.as_bytes());
+        let val_u32 = Self::hash_to_u32(val_ref.as_bytes());
 
         drop(lock);
 
@@ -51,8 +50,8 @@ where
         let key_ref = serialize(key.as_ref(), &mut lock)?;
         let val_ref = serialize(val.as_ref(), &mut lock)?;
 
-        let key_u32 = checksum_u32(key_ref.as_bytes(), key_ref.len() as u32);
-        let val_u32 = checksum_u32(val_ref.as_bytes(), val_ref.len() as u32);
+        let key_u32 = Self::hash_to_u32(key_ref.as_bytes());
+        let val_u32 = Self::hash_to_u32(val_ref.as_bytes());
 
         drop(lock);
 
@@ -75,6 +74,16 @@ where
         let mut lock = self.lake.lock().map_err(to_error)?;
 
         serialize(&(self.key_ref.as_str(), self.val_ref.as_str()), &mut lock)
+    }
+
+    pub fn hash_to_u32(bytes: &[u8]) -> u32 {
+        let decoded = modules::base64::decode(&bytes[0..6]);
+
+        unsafe { *(decoded.as_ptr() as *const u32) }
+    }
+
+    pub fn hash_u32(&self) -> UssResult<u32> {
+        Ok(Self::hash_to_u32(self.hash()?.as_bytes()))
     }
 
     pub fn key(&self) -> UssResult<Rc<K>> {
@@ -121,7 +130,7 @@ where
         let mut lock = self.lake.lock().map_err(to_error)?;
 
         let val_ref = serialize(value.as_ref(), &mut lock)?;
-        let val_u32 = checksum_u32(val_ref.as_bytes(), val_ref.len() as u32);
+        let val_u32 = Self::hash_to_u32(val_ref.as_bytes());
 
         drop(lock);
 
